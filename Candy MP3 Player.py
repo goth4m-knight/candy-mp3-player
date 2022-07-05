@@ -13,7 +13,7 @@ from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from sys import argv, exit
 import lyricsgenius
 
-genius = lyricsgenius.Genius('J6lSgKHLkgRJHgFNjFi0YWP8l9TRxP9gWg_xACDdfzw8L6ZDYqBgTDLa9njTDTKT', skip_non_songs=True,
+genius = lyricsgenius.Genius('whatever-api-you-get-from-https://genius.com/api-clients', skip_non_songs=True,
                              excluded_terms=["(Remix)", "(Live)"],
                              remove_section_headers=True)
 CWD = os.getcwd()
