@@ -1,22 +1,25 @@
-import shutil
 import threading
 import os
 import time
-from os.path import join, basename
 from PyQt5.QtWidgets import QApplication, \
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout, \
-    QStyle, QSlider, QShortcut, QLineEdit, QComboBox, QListWidget, QMessageBox, QTabWidget, QPlainTextEdit, QLabel, \
-    QProgressBar, QFrame
+    QStyle, QSlider, QShortcut, QLineEdit, QComboBox, QListWidget, QTabWidget, QPlainTextEdit, QLabel, \
+    QProgressBar, QFrame, QFileDialog
 from PyQt5.QtGui import QIcon, QKeySequence, QFont
 from PyQt5.QtCore import Qt, QUrl, QTime, QDir, QTimer
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from sys import argv, exit
 import lyricsgenius
 
-genius = lyricsgenius.Genius('whatever-api-you-get-from-API Client management page-in-https://docs.genius.com/', skip_non_songs=True,
+genius = lyricsgenius.Genius('J6lSgKHLkgRJHgFNjFi0YWP8l9TRxP9gWg_xACDdfzw8L6ZDYqBgTDLa9njTDTKT', skip_non_songs=True,
                              excluded_terms=["(Remix)", "(Live)"],
                              remove_section_headers=True)
+
 CWD = os.getcwd()
+os.chdir(QDir.homePath())
+fullnames = []
+filenames = []
+mp3files = {}
 
 
 class SplashScreen(QWidget):
@@ -27,7 +30,7 @@ class SplashScreen(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowIcon(QIcon("icons/mp3_player_icon1.ico"))
         self.counter = 0
-        self.n = 500
+        self.n = 280
         self.initUI()
         self.timer = QTimer()
         self.timer.timeout.connect(self.loading)
@@ -78,24 +81,16 @@ class SplashScreen(QWidget):
 
         def collect():
             os.chdir(QDir.homePath())
-            if not os.path.exists('CandyMusic'):
-                pass
-            else:
-                shutil.rmtree('CandyMusic')
-            os.mkdir('CandyMusic')
-            os.chdir(QDir.homePath() + '/CandyMusic')
-            for root, dirs, files in os.walk(QDir.homePath()):
+            for root, dirs, files in os.walk("C:/Users/Hacker/"):
                 for file in files:
-                    if file.endswith('.mp3'):
+                    if file.endswith(".mp3"):
                         fullname = os.path.join(root, file).replace('\\', '/')
-                        filename = os.path.splitext(os.path.basename(fullname))
-                        for name in filename:
-                            try:
-                                f = open(f"{name}.txt", 'w')
-                                for names in fullname:
-                                    f.write(names)
-                            except Exception:
-                                pass
+                        filename = os.path.basename(fullname)
+                        fullnames.append(fullname)
+                        filenames.append(filename.replace('.mp3', ''))
+
+            for i in range(len(filenames)):
+                mp3files[filenames[i]] = fullnames[i]
 
         if self.counter == int(self.n * 0):
             threading.Thread(target=collect).start()
@@ -121,12 +116,15 @@ class CandyMP3Player(QWidget):
         self.setWindowTitle("Candy Music Player")
         self.setWindowIcon(QIcon("icons/mp3_player_icon1.ico"))
         self.create_player()
+        self.path_selected = False
         self.repeat_one = False
         self.once = False
 
     def create_player(self):
         self.list = QListWidget()
         self.list.setFont(QFont('Sitka Text', 11))
+        self.list2 = QListWidget()
+        self.list2.setFont(QFont('Sitka Text', 11))
         self.player = QMediaPlayer()
         self.list.itemClicked.connect(self.file)
 
@@ -144,25 +142,25 @@ class CandyMP3Player(QWidget):
         self.upBtn = QPushButton()
         self.upBtn.setIcon(QIcon('icons/volume up.png'))
         self.upBtn.clicked.connect(self.volumeUp)
-        self.upBtn.setToolTip("Volume Up(Shortcut: Arrow Up Key)")
+        self.upBtn.setToolTip("Volume Up(Shortcut: +)")
         self.upBtn.setFont(QFont('Sitka Text', 11))
 
         self.downBtn = QPushButton()
         self.downBtn.setIcon(QIcon('icons/volume down.png'))
         self.downBtn.clicked.connect(self.volumeDown)
-        self.downBtn.setToolTip("Volume Down(Shortcut: Arrow Down Key)")
+        self.downBtn.setToolTip("Volume Down(Shortcut: -)")
         self.downBtn.setFont(QFont('Sitka Text', 11))
 
         self.backwardBtn = QPushButton()
         self.backwardBtn.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipBackward))
         self.backwardBtn.clicked.connect(self.playPrevious)
-        self.backwardBtn.setToolTip("Previous(Shortcut: Arrow Down Key)")
+        self.backwardBtn.setToolTip("Previous(Shortcut: Arrow Left Key)")
         self.backwardBtn.setFont(QFont('Sitka Text', 11))
 
         self.forwardBtn = QPushButton()
         self.forwardBtn.setIcon(self.style().standardIcon(QStyle.SP_MediaSkipForward))
         self.forwardBtn.clicked.connect(self.playNext)
-        self.forwardBtn.setToolTip("Next(Shortcut: Arrow Down Key)")
+        self.forwardBtn.setToolTip("Next(Shortcut: Arrow Right Key)")
         self.forwardBtn.setFont(QFont('Sitka Text', 11))
 
         self.slider = QSlider(Qt.Horizontal)
@@ -247,8 +245,9 @@ class CandyMP3Player(QWidget):
         self.lyricBtn.setToolTip("Search For Lyrics")
         self.lyricBtn.setFont(QFont('Sitka Text', 11))
 
-        self.slbl = QLineEdit('Search For Lyrics')
+        self.slbl = QLineEdit()
         self.slbl.setFont(QFont('Sitka Text', 11))
+        self.slbl.setPlaceholderText('Search for Lyrics')
         self.slbl.setUpdatesEnabled(True)
 
         self.songlbl = QPlainTextEdit()
@@ -258,18 +257,15 @@ class CandyMP3Player(QWidget):
         self.songlbl.setUpdatesEnabled(True)
 
         self.sentry = QLineEdit()
-        self.slbl.setFont(QFont('Sitka Text', 11))
+        self.sentry.setFont(QFont('Sitka Text', 11))
+        self.sentry.setPlaceholderText("Search Songs")
         self.sentry.setUpdatesEnabled(True)
 
-        self.searchBtn = QPushButton()
-        self.searchBtn.setText('Search')
-        self.searchBtn.clicked.connect(self.search)
-        self.searchBtn.setFont(QFont('Sitka Text', 11))
-
-        self.allBtn = QPushButton()
-        self.allBtn.setText('All Songs')
-        self.allBtn.clicked.connect(self.all_songs)
-        self.allBtn.setFont(QFont('Sitka Text', 11))
+        self.changeDirBtn = QPushButton()
+        self.changeDirBtn.setText('Change Music Directory')
+        self.changeDirBtn.clicked.connect(self.changeDir)
+        self.changeDirBtn.setToolTip("Select The Music Directory You Want To Listen")
+        self.changeDirBtn.setFont(QFont('Sitka Text', 10))
 
         self.shortcut = QShortcut(QKeySequence(" "), self)
         self.shortcut.activated.connect(self.playAudioFile)
@@ -277,9 +273,9 @@ class CandyMP3Player(QWidget):
         self.shortcut.activated.connect(self.playNext)
         self.shortcut = QShortcut(QKeySequence(Qt.Key_Left), self)
         self.shortcut.activated.connect(self.playPrevious)
-        self.shortcut = QShortcut(QKeySequence(Qt.Key_Up), self)
+        self.shortcut = QShortcut(QKeySequence("+"), self)
         self.shortcut.activated.connect(self.volumeUp)
-        self.shortcut = QShortcut(QKeySequence(Qt.Key_Down), self)
+        self.shortcut = QShortcut(QKeySequence("-"), self)
         self.shortcut.activated.connect(self.volumeDown)
         self.shortcut = QShortcut(QKeySequence("m"), self)
         self.shortcut.activated.connect(self.mute)
@@ -297,8 +293,7 @@ class CandyMP3Player(QWidget):
 
         sbox = QHBoxLayout()
         sbox.addWidget(self.sentry)
-        sbox.addWidget(self.searchBtn)
-        sbox.addWidget(self.allBtn)
+        sbox.addWidget(self.changeDirBtn)
         sbox.addWidget(self.reloadBtn)
 
         hbox = QHBoxLayout()
@@ -324,7 +319,6 @@ class CandyMP3Player(QWidget):
         ahbox.addWidget(self.elbl)
 
         self.flayout = QVBoxLayout()
-
         self.flayout.addLayout(sbox)
         self.flayout.addWidget(self.list)
         self.flayout.addLayout(ahbox)
@@ -355,43 +349,34 @@ class CandyMP3Player(QWidget):
         self.player.mediaStatusChanged.connect(self.statusChanged)
         self.list.itemClicked.connect(self.get_lyrics)
         self.list.itemSelectionChanged.connect(self.nameChange)
-        os.chdir(QDir.homePath() + '/CandyMusic')
+        self.sentry.textChanged.connect(self.search)
         self.x = 0
         self.x += 1
         self.list.clear()
-        for _file in os.listdir(os.getcwd()):
-            if not _file == '.mp3.txt':
-                self.list.insertItem(self.x, os.path.splitext(os.path.basename(_file))[0])
+        for keys in mp3files.keys():
+            self.list.insertItem(self.x, keys)
         self.list.sortItems(Qt.AscendingOrder)
 
     def get_songs(self):
-        self.x = 0
-        self.x += 1
-        os.chdir(QDir.homePath())
-        if not os.path.exists('CandyMusic'):
-            pass
-        else:
-            shutil.rmtree('CandyMusic')
-        os.mkdir('CandyMusic')
-        os.chdir(QDir.homePath() + '/CandyMusic')
-        for root, dirs, files in os.walk(QDir.homePath()):
+        fullnames.clear()
+        filenames.clear()
+        mp3files.clear()
+
+        for root, dirs, files in os.walk(os.curdir):
             for file in files:
-                if file.endswith('.mp3'):
-                    fullname = join(root, file).replace('\\', '/')
-                    filename = os.path.splitext(os.path.basename(fullname))
-                    for name in filename:
-                        try:
-                            f = open(f"{name}.txt", 'w')
-                            for names in fullname:
-                                f.write(names)
-                            os.chdir(QDir.homePath() + '/CandyMusic')
-                            self.list.clear()
-                            for _file in os.listdir(os.getcwd()):
-                                if not _file == '.mp3.txt':
-                                    self.list.insertItem(self.x, os.path.splitext(os.path.basename(_file))[0])
-                            self.list.sortItems(Qt.AscendingOrder)
-                        except Exception:
-                            pass
+                if file.endswith(".mp3"):
+                    fullname = os.path.join(root, file).replace('\\', '/')
+                    filename = os.path.basename(fullname)
+                    fullnames.append(fullname)
+                    filenames.append(filename.replace('.mp3', ''))
+
+        for i in range(len(filenames)):
+            mp3files[filenames[i]] = fullnames[i]
+
+        self.list.clear()
+        for keys in mp3files.keys():
+            self.list.insertItem(self.x, keys)
+        self.list.sortItems(Qt.AscendingOrder)
 
     def nameChange(self):
         try:
@@ -426,39 +411,49 @@ class CandyMP3Player(QWidget):
             self.player.play()
 
     def get_lyrics(self):
-        def lyrics():
-            name = self.list.currentItem().text()
-            if '(' in name:
+        def show_lyrics():
+            def lyrics():
+                name = self.list.currentItem().text()
+                if '(' in name:
+                    self.songlbl.clear()
+                    song = genius.search_song(name.split('(')[0])
+                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
+                    self.slbl.setText(f"{name.split('(')[0]}")
+                    self.songlbl.verticalScrollBar().setValue(
+                        self.songlbl.verticalScrollBar().minimum())
+
+                elif '.' in name:
+                    self.songlbl.clear()
+                    song = genius.search_song(name.split('.')[0])
+                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
+                    self.slbl.setText(f"{name.split('.')[0]}")
+                    self.songlbl.verticalScrollBar().setValue(
+                        self.songlbl.verticalScrollBar().minimum())
+
+                else:
+                    self.songlbl.clear()
+                    song = genius.search_song(name.split('[')[0])
+                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
+                    self.slbl.setText(f"{name.split('.')[0]}")
+                    self.songlbl.verticalScrollBar().setValue(
+                        self.songlbl.verticalScrollBar().minimum())
+
+            def play():
+                self.player.play()
+
+            try:
+                threading.Thread(target=play()).start()
+                threading.Thread(target=lyrics()).start()
+
+            except Exception:
+                name = self.list.currentItem().text()
+                song = name.split('(')[0]
+                self.slbl.setText(f"{song}")
                 self.songlbl.clear()
-                song = genius.search_song(name.split('(')[0])
-                self.songlbl.insertPlainText(f"{song.lyrics}\n")
-                self.slbl.setText(f"{name.split('(')[0]}")
-                self.songlbl.verticalScrollBar().setValue(
-                    self.songlbl.verticalScrollBar().minimum())
-
-            else:
-                self.songlbl.clear()
-                song = genius.search_song(name.split('[')[0])
-                self.songlbl.insertPlainText(f"{song.lyrics}\n")
-                self.slbl.setText(f"{name.split('.')[0]}")
-                self.songlbl.verticalScrollBar().setValue(
-                    self.songlbl.verticalScrollBar().minimum())
-
-        def play():
-            self.player.play()
-
-        try:
-            threading.Thread(target=play()).start()
-            threading.Thread(target=lyrics()).start()
-
-        except Exception:
-            name = self.list.currentItem().text()
-            song = name.split('(')[0]
-            self.slbl.setText(f"{song}")
-            self.songlbl.clear()
-            self.songlbl.insertPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection.\nYou can Type In "
-                                         f"The Song Name In Search Box.")
-            self.player.play()
+                self.songlbl.insertPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection.\nYou can Type In"
+                                             f" The Song Name In Search Box.")
+                self.player.play()
+        threading.Thread(target=show_lyrics).start()
 
     def repeat_or_not(self):
         while True:
@@ -495,63 +490,47 @@ class CandyMP3Player(QWidget):
             if status == QMediaPlayer.EndOfMedia:
                 try:
                     self.list.setCurrentRow(self.list.currentRow() + 1)
-                    f = open(f"{self.list.currentItem().text()}.txt", 'r')
-                    self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+                    self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
                     self.player.play()
 
                 except Exception:
-                    self.list.setCurrentRow(0)
-                    f = open(f"{self.list.currentItem().text()}.txt", 'r')
-                    self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
-                    self.player.play()
+                    self.player.stop()
 
         if self.repeat_one and not self.once:
             try:
                 if status == QMediaPlayer.EndOfMedia:
-                    f = open(f"{self.list.currentItem().text()}.txt", 'r')
-                    self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+                    self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
                     self.player.play()
             except Exception:
                 self.list.setCurrentRow(0)
-                f = open(f"{self.list.currentItem().text()}.txt", 'r')
-                self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+                self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
                 self.player.play()
-
-    def all_songs(self):
-        self.sentry.setText('')
-        self.list.clear()
-        for files in os.listdir(os.getcwd()):
-            if not files == '.mp3.txt':
-                self.list.insertItem(self.x, os.path.splitext(os.path.basename(files))[0])
-        self.list.sortItems(Qt.AscendingOrder)
 
     def search(self):
         songlist = []
         songlist.clear()
         self.list.clear()
-        for root, dirs, files in os.walk(os.getcwd()):
-            for file in files:
-                known_song = join(root, file)
-                db = known_song.replace(' ', '').replace('-', '').lower()
-                search_song = self.sentry.text().replace(' ', '').replace('-', '').lower()
-                if search_song in db:
-                    songlist.append(known_song)
-
-        if len(songlist) == 0:
-            QMessageBox.about(self, 'Error', f'No File Named {self.sentry.text()} Found')
+        for keys in mp3files.keys():
+            db = keys.replace(' ', '').replace('-', '').lower()
+            search_song = self.sentry.text().replace(' ', '').replace('-', '').lower()
+            if search_song in db:
+                songlist.append(keys)
 
         for song in songlist:
-            self.list.insertItem(self.x, os.path.splitext(basename(song))[0])
+            self.list.insertItem(self.x, song)
         self.list.sortItems(Qt.AscendingOrder)
 
     def reloadr(self):
         os.chdir(QDir.homePath())
-        os.system('rmdir /s /q CandyMusic')
+        self.get_songs()
+
+    def changeDir(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Music Directory", f"{QDir.homePath()}/Music")
+        os.chdir(str(path))
         self.get_songs()
 
     def file(self):
-        f = open(f"{self.list.currentItem().text()}.txt", 'r')
-        self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+        self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
 
     def playAudioFile(self):
         if self.player.state() == QMediaPlayer.PlayingState:
@@ -618,37 +597,23 @@ class CandyMP3Player(QWidget):
     def playNext(self):
         try:
             self.list.setCurrentRow(self.list.currentRow() + 1)
-            f = open(f"{self.list.currentItem().text()}.txt", 'r')
-            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
         except Exception:
             self.list.setCurrentRow(0)
-            f = open(f"{self.list.currentItem().text()}.txt", 'r')
-            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
 
     def playPrevious(self):
         try:
             self.list.setCurrentRow(self.list.currentRow() - 1)
-            f = open(f"{self.list.currentItem().text()}.txt", 'r')
-            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
 
         except Exception:
-            self.list.setCurrentRow(self.list.currentRow() + 1)
-            f = open(f"{self.list.currentItem().text()}.txt", 'r')
-            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(f.read())))
+            self.list.setCurrentRow(self.list.count() - 1)
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
-
-    def closeEvent(self, event):
-        close = QMessageBox.question(self, "QUIT", "Are you sure you want to quit?",
-                                     QMessageBox.Yes | QMessageBox.No)
-        if close == QMessageBox.Yes:
-            os.chdir(QDir.homePath())
-            shutil.rmtree('CandyMusic')
-            event.accept()
-        else:
-            event.ignore()
 
 
 if __name__ == '__main__':
