@@ -1,109 +1,39 @@
-import threading
 import os
+import sqlite3
+import threading
 import time
+from sys import argv, exit
+from pytube import YouTube
+import lyricsgenius
+from PyQt5.QtCore import Qt, QUrl, QTime, QEvent
+from PyQt5.QtGui import QIcon, QKeySequence, QFont, QMouseEvent
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtWidgets import QApplication, \
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout, \
-    QStyle, QSlider, QShortcut, QLineEdit, QComboBox, QListWidget, QTabWidget, QPlainTextEdit, QLabel, \
-    QProgressBar, QFrame, QFileDialog
-from PyQt5.QtGui import QIcon, QKeySequence, QFont
-from PyQt5.QtCore import Qt, QUrl, QTime, QDir, QTimer
-from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from sys import argv, exit
-import lyricsgenius
+    QStyle, QSlider, QShortcut, QLineEdit, QComboBox, QListWidget, QTabWidget, QPlainTextEdit, QAction, QMenu, QDialog, QMessageBox
+import json
 
 genius = lyricsgenius.Genius('J6lSgKHLkgRJHgFNjFi0YWP8l9TRxP9gWg_xACDdfzw8L6ZDYqBgTDLa9njTDTKT', skip_non_songs=True,
                              excluded_terms=["(Remix)", "(Live)"],
                              remove_section_headers=True)
 
-CWD = os.getcwd()
-os.chdir(QDir.homePath())
-fullnames = []
-filenames = []
 mp3files = {}
+song_to_add_to_playlist = []
 
+if "CMPdata.db" in os.listdir(f"C:/Users/{os.getlogin()}"):
+    conn = sqlite3.connect(f"C:/Users/{os.getlogin()}/CMPdata.db")
+    c = conn.cursor()
+else:
+    os.startfile("database.exe")
+    time.sleep(2.5)
+    conn = sqlite3.connect(f"C:/Users/{os.getlogin()}/CMPdata.db")
+    c = conn.cursor()
 
-class SplashScreen(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setFixedSize(700, 350)
-        self.setWindowFlag(Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setWindowIcon(QIcon("icons/mp3_player_icon1.ico"))
-        self.counter = 0
-        self.n = 280
-        self.initUI()
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.loading)
-        self.timer.start(30)
-
-    def initUI(self):
-        # layout to display splash scrren frame
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        # splash screen frame
-        self.frame = QFrame()
-        self.frame.setObjectName('Frame')
-        layout.addWidget(self.frame)
-        # splash screen title
-        self.title_label = QLabel(self.frame)
-        self.title_label.setObjectName('title_label')
-        self.title_label.resize(690, 120)
-        self.title_label.move(0, 5)  # x, y
-        self.title_label.setText('Candy MP3 Player')
-        self.title_label.setAlignment(Qt.AlignCenter)
-        # splash screen title description
-        self.description_label = QLabel(self.frame)
-        self.description_label.resize(690, 40)
-        self.description_label.move(0, self.title_label.height())
-        self.description_label.setObjectName('desc_label')
-        self.description_label.setText('<b>Collecting Songs</b>')
-        self.description_label.setAlignment(Qt.AlignCenter)
-        # splash screen pogressbar
-        self.progressBar = QProgressBar(self.frame)
-        self.progressBar.resize(self.width() - 200 - 10, 50)
-        self.progressBar.move(100, 180)  # self.description_label.y()+130
-        self.progressBar.setAlignment(Qt.AlignCenter)
-        self.progressBar.setFormat('%p%')
-        self.progressBar.setTextVisible(True)
-        self.progressBar.setRange(0, self.n)
-        self.progressBar.setValue(20)
-        # spash screen loading label
-        self.loading_label = QLabel(self.frame)
-        self.loading_label.resize(self.width() - 10, 50)
-        self.loading_label.move(0, self.progressBar.y() + 70)
-        self.loading_label.setObjectName('loading_label')
-        self.loading_label.setAlignment(Qt.AlignCenter)
-        self.loading_label.setText('Loading...')
-
-    def loading(self):
-        # set progressbar value
-        self.progressBar.setValue(self.counter)
-
-        def collect():
-            os.chdir(QDir.homePath())
-            for root, dirs, files in os.walk("C:/Users/Hacker/"):
-                for file in files:
-                    if file.endswith(".mp3"):
-                        fullname = os.path.join(root, file).replace('\\', '/')
-                        filename = os.path.basename(fullname)
-                        fullnames.append(fullname)
-                        filenames.append(filename.replace('.mp3', ''))
-
-            for i in range(len(filenames)):
-                mp3files[filenames[i]] = fullnames[i]
-
-        if self.counter == int(self.n * 0):
-            threading.Thread(target=collect).start()
-
-        if self.counter >= self.n:
-            self.timer.stop()
-            self.close()
-            time.sleep(1)
-            os.chdir(CWD)
-            self.WindowApp = CandyMP3Player()
-            self.WindowApp.show()
-
-        self.counter += 1
+if 'CMPdata.json' in os.listdir(f"C:/Users/{os.getlogin()}"):
+    f = open(f'C:/Users/{os.getlogin()}/CMPdata.json', 'r')
+    data = json.load(f)
+else:
+    data = None
 
 
 class CandyMP3Player(QWidget):
@@ -115,18 +45,25 @@ class CandyMP3Player(QWidget):
         self.setMaximumHeight(self.window_height)
         self.setWindowTitle("Candy Music Player")
         self.setWindowIcon(QIcon("icons/mp3_player_icon1.ico"))
+        self.played = []
+        self.playing = data['last_played'] if data else None
+        self.total_time = data['total_time'] if data else 100
+        self.time_elapsed = data['time_elapsed'] if data else 0
+        self.volume_value = data['volume'] if data else 100
+        self.last_playlist = data['last_playlist'] if data else "Songs"
+        self.lyrics_searched = False
+        self.repeat_one = data['repeat'] if data else False
+        self.once = data['once'] if data else False
         self.create_player()
-        self.path_selected = False
-        self.repeat_one = False
-        self.once = False
+        self.get_songs()
+        self.adjusting()
 
     def create_player(self):
         self.list = QListWidget()
         self.list.setFont(QFont('Sitka Text', 11))
-        self.list2 = QListWidget()
-        self.list2.setFont(QFont('Sitka Text', 11))
         self.player = QMediaPlayer()
         self.list.itemClicked.connect(self.file)
+        self.list.installEventFilter(self)
 
         self.playBtn = QPushButton()
         self.playBtn.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
@@ -165,14 +102,15 @@ class CandyMP3Player(QWidget):
 
         self.slider = QSlider(Qt.Horizontal)
         self.slider = QSlider(Qt.Horizontal, self)
-        self.slider.setRange(0, 100)
+        self.slider.setRange(0, self.total_time)
+        self.slider.setValue(self.time_elapsed)
         self.slider.sliderMoved.connect(self.set_position)
         self.slider.setAttribute(Qt.WA_TranslucentBackground, True)
 
         self.vslider = QSlider(Qt.Horizontal)
         self.vslider = QSlider(Qt.Horizontal, self)
         self.vslider.setRange(0, 100)
-        self.vslider.setValue(100)
+        self.vslider.setValue(self.volume_value)
         self.vslider.setFixedWidth(90)
         self.vslider.setAttribute(Qt.WA_TranslucentBackground, True)
         self.vslider.sliderMoved.connect(self.volume)
@@ -191,11 +129,16 @@ class CandyMP3Player(QWidget):
         self.rateBox.setFont(QFont('Sitka Text', 8))
         self.rateBox.activated.connect(self.updateRate)
 
-        self.reloadBtn = QPushButton()
-        self.reloadBtn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
-        self.reloadBtn.clicked.connect(self.reloadr)
-        self.reloadBtn.setToolTip("Reload To Add New Songs")
-        self.reloadBtn.setFont(QFont('Sitka Text', 11))
+        self.tablebox = QComboBox()
+        self.tablebox.setFont(QFont('Sitka Text', 11))
+        self.tablebox.addItem("Songs")
+        c.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        for tables in c.fetchall():
+            for table in tables:
+                if table != "songs":
+                    self.tablebox.addItem(table.title())
+        self.tablebox.setCurrentText(self.last_playlist)
+        self.tablebox.currentIndexChanged.connect(self.get_songs)
 
         self.repeatBtn = QPushButton()
         self.repeatBtn.setIcon(QIcon("icons/repeat.png"))
@@ -245,6 +188,14 @@ class CandyMP3Player(QWidget):
         self.lyricBtn.setToolTip("Search For Lyrics")
         self.lyricBtn.setFont(QFont('Sitka Text', 11))
 
+        self.deleteBtn = QPushButton()
+        self.deleteBtn.setIcon(QIcon('icons/delete.png'))
+        self.deleteBtn.setToolTip('Delete Playlist')
+        self.deleteBtn.clicked.connect(self.delete_playlist)
+        self.deleteBtn.setFont(QFont('Sitka Text', 11))
+        self.deleteBtn.setFixedSize(45, 40)
+        self.deleteBtn.hide()
+
         self.slbl = QLineEdit()
         self.slbl.setFont(QFont('Sitka Text', 11))
         self.slbl.setPlaceholderText('Search for Lyrics')
@@ -258,14 +209,14 @@ class CandyMP3Player(QWidget):
 
         self.sentry = QLineEdit()
         self.sentry.setFont(QFont('Sitka Text', 11))
-        self.sentry.setPlaceholderText("Search Songs")
+        self.sentry.setPlaceholderText("Search Songs (Paste url to download)")
         self.sentry.setUpdatesEnabled(True)
 
-        self.changeDirBtn = QPushButton()
-        self.changeDirBtn.setText('Change Music Directory')
-        self.changeDirBtn.clicked.connect(self.changeDir)
-        self.changeDirBtn.setToolTip("Select The Music Directory You Want To Listen")
-        self.changeDirBtn.setFont(QFont('Sitka Text', 10))
+        self.download_btn = QPushButton()
+        self.download_btn.setIcon(QIcon("icons/download.png"))
+        self.download_btn.setToolTip("Download (Copy & Paste the youtube url in Search Songs)")
+        self.download_btn.clicked.connect(self.download)
+        self.download_btn.setFixedSize(45, 40)
 
         self.shortcut = QShortcut(QKeySequence(" "), self)
         self.shortcut.activated.connect(self.playAudioFile)
@@ -279,6 +230,8 @@ class CandyMP3Player(QWidget):
         self.shortcut.activated.connect(self.volumeDown)
         self.shortcut = QShortcut(QKeySequence("m"), self)
         self.shortcut.activated.connect(self.mute)
+        self.shortcut = QShortcut(QKeySequence("r"), self)
+        self.shortcut.activated.connect(self.repeat_or_not)
 
         self.layout = QVBoxLayout(self)
 
@@ -293,8 +246,9 @@ class CandyMP3Player(QWidget):
 
         sbox = QHBoxLayout()
         sbox.addWidget(self.sentry)
-        sbox.addWidget(self.changeDirBtn)
-        sbox.addWidget(self.reloadBtn)
+        sbox.addWidget(self.download_btn)
+        sbox.addWidget(self.deleteBtn)
+        sbox.addWidget(self.tablebox)
 
         hbox = QHBoxLayout()
         hbox.addWidget(self.playBtn)
@@ -347,113 +301,207 @@ class CandyMP3Player(QWidget):
         self.player.positionChanged.connect(self.position_changed)
         self.player.durationChanged.connect(self.duration_changed)
         self.player.mediaStatusChanged.connect(self.statusChanged)
-        self.list.itemClicked.connect(self.get_lyrics)
+        self.list.itemClicked.connect(self.playAudioFile)
+        self.list.itemClicked.connect(self.get_current_song)
         self.list.itemSelectionChanged.connect(self.nameChange)
         self.sentry.textChanged.connect(self.search)
+        self.tablebox.currentTextChanged.connect(self.playlist_changed)
+        self.tabs.tabBarClicked.connect(self.lyrics)
         self.x = 0
         self.x += 1
         self.list.clear()
         for keys in mp3files.keys():
             self.list.insertItem(self.x, keys)
         self.list.sortItems(Qt.AscendingOrder)
+        self.volume()
+
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.ContextMenu and source is self.list:
+            menu = QMenu()
+            add_to_fav = QAction("Add to Favourite")
+            add_to_playlist = QAction("Add to Playlist")
+            remove = QAction("Remove from Playlist")
+            delete = QAction("Delete")
+            if self.tablebox.currentText() == "Songs":
+                menu.addAction(add_to_fav)
+                menu.addAction(add_to_playlist)
+                menu.addAction(delete)
+            else:
+                menu.addAction(add_to_playlist)
+                menu.addAction(remove)
+                menu.addAction(delete)
+            menu_click = menu.exec(event.globalPos())
+
+            if menu_click == add_to_fav:
+                c.execute("INSERT INTO favourites(name, fullpath) VALUES(?, ?)",
+                          (self.list.currentItem().text(), mp3files[self.list.currentItem().text()]))
+                conn.commit()
+            if menu_click == add_to_playlist:
+                song_to_add_to_playlist.append(self.list.currentItem().text())
+                song_to_add_to_playlist.append(mp3files[self.list.currentItem().text()])
+                self.popup = Popup(self.tablebox)
+                self.popup.show()
+            if menu_click == remove:
+                if self.tablebox.currentText() == "Songs":
+                    self.list.takeItem(self.list.currentRow())
+                else:
+                    c.execute(f"DELETE FROM {self.tablebox.currentText()} WHERE name='{self.list.currentItem().text()}'")
+                    conn.commit()
+                    self.get_songs()
+            if menu_click == delete:
+                os.remove(mp3files[self.list.currentItem().text()])
+                c.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                for tables in c.fetchall():
+                    for table in tables:
+                        c.execute(f"DELETE FROM {table} WHERE name='{self.list.currentItem().text()}'")
+                conn.commit()
+            if len(self.played) >= 1:
+                self.playing = self.played[-1]
+            self.get_songs()
+            return True
+        return super(CandyMP3Player, self).eventFilter(source, event)
+
+    def adjusting(self):
+        print(self.repeat_one)
+        print(self.once)
+        try:
+            if self.playing:
+                self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.playing])))
+            self.set_position(self.time_elapsed)
+            self.position_changed(self.time_elapsed)
+            while True:
+                if not self.repeat_one and not self.once:
+                    self.repeatoneBtn.hide()
+                    self.playallBtn.hide()
+                    self.repeatBtn.show()
+                    break
+
+                elif self.repeat_one and not self.once:
+                    self.repeatBtn.hide()
+                    self.playallBtn.hide()
+                    self.repeatoneBtn.show()
+                    break
+
+                elif not self.repeat_one:
+                    self.repeatBtn.hide()
+                    self.repeatoneBtn.hide()
+                    self.playallBtn.show()
+                    break
+        except Exception:
+            pass
 
     def get_songs(self):
-        fullnames.clear()
-        filenames.clear()
+        c.execute(f"""SELECT * FROM {self.tablebox.currentText()}""")
         mp3files.clear()
-
-        for root, dirs, files in os.walk(os.curdir):
-            for file in files:
-                if file.endswith(".mp3"):
-                    fullname = os.path.join(root, file).replace('\\', '/')
-                    filename = os.path.basename(fullname)
-                    fullnames.append(fullname)
-                    filenames.append(filename.replace('.mp3', ''))
+        filenames = []
+        fullpath = []
+        for both in c.fetchall():
+            filenames.append(both[0])
+            fullpath.append(both[1])
 
         for i in range(len(filenames)):
-            mp3files[filenames[i]] = fullnames[i]
-
+            mp3files[filenames[i]] = fullpath[i]
         self.list.clear()
         for keys in mp3files.keys():
             self.list.insertItem(self.x, keys)
         self.list.sortItems(Qt.AscendingOrder)
+        if self.playing is not None:
+            try:
+                item = self.list.findItems(self.playing, Qt.MatchExactly)
+                index = self.list.row(item[0])
+                self.list.setCurrentRow(index)
+            except Exception:
+                pass
+
+    def download(self):
+        try:
+            url = self.sentry.text()
+            yt = YouTube(url)
+            stream = yt.streams.filter(only_audio=True).first()
+            self.message_box("Download", f"Downloading - {yt.title}")
+            path = "C:/Users/%s/Music"%os.getlogin()
+            out_file = stream.download(output_path=path)
+            base, ext = os.path.splitext(out_file)
+            new_file = base + '.mp3'
+            os.rename(out_file, new_file)
+            self.sentry.clear()
+            self.message_box("Download", f"Downloaded - {yt.title} in {path}")
+            c.execute("""INSERT INTO songs(name, fullpath) VALUES(?, ?)""", (yt.title, new_file.replace('\\', '/')))
+            conn.commit()
+            self.get_songs()
+        except Exception as e:
+            self.error_box("Error Downloading", str(e))
+
+    def message_box(self, win_title, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(message)
+        msg.setWindowTitle(win_title)
+        msg.setWindowIcon(QIcon("icons/mp3_player_icon1"))
+        msg.setStandardButtons(QMessageBox.Ok)
+        retval = msg.exec_()
+
+    def error_box(self, win_title, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText(message)
+        msg.setWindowTitle(win_title)
+        msg.setWindowIcon(QIcon("icons/mp3_player_icon1"))
+        msg.setStandardButtons(QMessageBox.Ok)
+        retval = msg.exec_()
+
+    def playlist_changed(self):
+        if self.tablebox.currentText() in ['Songs', 'Favourites']:
+            self.deleteBtn.hide()
+        else:
+            self.deleteBtn.show()
+
+    def delete_playlist(self):
+        index = self.tablebox.currentIndex()
+        c.execute(f"""DROP TABLE IF EXISTS {self.tablebox.currentText()}""")
+        self.tablebox.setCurrentText("Songs")
+        self.tablebox.removeItem(index)
 
     def nameChange(self):
         try:
-            if '(' in self.list.currentItem().text():
-                self.slbl.setText(f'{self.list.currentItem().text().split("(")[0]}')
-
-            else:
-                self.slbl.setText(f'{self.list.currentItem().text().split("[")[0]}')
+            self.setWindowTitle(f'Playing - {self.list.currentItem().text()}')
+            self.slbl.setText(
+                f'{self.list.currentItem().text().split("(Official")[0].split("(MP3")[0].split("(Mp3")[0].split("(mp3")[0]}')
         except Exception:
             pass
+        self.lyrics_searched = False
+
+    def lyrics(self, index):
+        def lyrics():
+            if index == 1:
+                if not self.lyrics_searched:
+                    try:
+                        self.songlbl.setPlainText("Searching...")
+                        name = self.slbl.text()
+                        song = genius.search_song(name)
+                        self.songlbl.clear()
+                        self.songlbl.insertPlainText(f"{song.lyrics}\n")
+
+                    except Exception:
+                        self.songlbl.clear()
+                        self.songlbl.setPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection."
+                                                  f"\nYou can Type In The Song Name In Search Box.")
+
+        threading.Thread(target=lyrics).start()
+        self.lyrics_searched = True
 
     def getLyrics(self):
-        def lyrics():
-            self.songlbl.clear()
+        try:
+            self.songlbl.setPlainText("Searching...")
             name = self.slbl.text()
             song = genius.search_song(name)
+            self.songlbl.clear()
             self.songlbl.insertPlainText(f"{song.lyrics}\n")
-            self.songlbl.verticalScrollBar().setValue(
-                self.songlbl.verticalScrollBar().minimum())
-
-        def play():
-            self.player.play()
-
-        try:
-            threading.Thread(target=play()).start()
-            threading.Thread(target=lyrics()).start()
 
         except Exception:
             self.songlbl.clear()
-            self.songlbl.insertPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection.\nYou can Type In "
-                                         f"The Song Name In Search Box.")
-            self.player.play()
-
-    def get_lyrics(self):
-        def show_lyrics():
-            def lyrics():
-                name = self.list.currentItem().text()
-                if '(' in name:
-                    self.songlbl.clear()
-                    song = genius.search_song(name.split('(')[0])
-                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
-                    self.slbl.setText(f"{name.split('(')[0]}")
-                    self.songlbl.verticalScrollBar().setValue(
-                        self.songlbl.verticalScrollBar().minimum())
-
-                elif '.' in name:
-                    self.songlbl.clear()
-                    song = genius.search_song(name.split('.')[0])
-                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
-                    self.slbl.setText(f"{name.split('.')[0]}")
-                    self.songlbl.verticalScrollBar().setValue(
-                        self.songlbl.verticalScrollBar().minimum())
-
-                else:
-                    self.songlbl.clear()
-                    song = genius.search_song(name.split('[')[0])
-                    self.songlbl.insertPlainText(f"{song.lyrics}\n")
-                    self.slbl.setText(f"{name.split('.')[0]}")
-                    self.songlbl.verticalScrollBar().setValue(
-                        self.songlbl.verticalScrollBar().minimum())
-
-            def play():
-                self.player.play()
-
-            try:
-                threading.Thread(target=play()).start()
-                threading.Thread(target=lyrics()).start()
-
-            except Exception:
-                name = self.list.currentItem().text()
-                song = name.split('(')[0]
-                self.slbl.setText(f"{song}")
-                self.songlbl.clear()
-                self.songlbl.insertPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection.\nYou can Type In"
-                                             f" The Song Name In Search Box.")
-                self.player.play()
-        threading.Thread(target=show_lyrics).start()
+            self.songlbl.setPlainText(f"No Lyrics Found.\nPlease Check Your Internet Connection.\nYou can Type In "
+                                      f"The Song Name In Search Box.")
 
     def repeat_or_not(self):
         while True:
@@ -473,7 +521,7 @@ class CandyMP3Player(QWidget):
                 self.once = True
                 break
 
-            elif not self.repeat_one and self.once:
+            elif not self.repeat_one:
                 self.repeat_one = False
                 self.repeatBtn.show()
                 self.playallBtn.hide()
@@ -494,6 +542,7 @@ class CandyMP3Player(QWidget):
                     self.player.play()
 
                 except Exception:
+                    self.setWindowTitle('Candy MP3 Player')
                     self.player.stop()
 
         if self.repeat_one and not self.once:
@@ -519,15 +568,13 @@ class CandyMP3Player(QWidget):
         for song in songlist:
             self.list.insertItem(self.x, song)
         self.list.sortItems(Qt.AscendingOrder)
-
-    def reloadr(self):
-        os.chdir(QDir.homePath())
-        self.get_songs()
-
-    def changeDir(self):
-        path = QFileDialog.getExistingDirectory(self, "Select Music Directory", f"{QDir.homePath()}/Music")
-        os.chdir(str(path))
-        self.get_songs()
+        if self.playing is not None:
+            try:
+                item = self.list.findItems(self.playing, Qt.MatchExactly)
+                index = self.list.row(item[0])
+                self.list.setCurrentRow(index)
+            except Exception:
+                pass
 
     def file(self):
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
@@ -536,10 +583,17 @@ class CandyMP3Player(QWidget):
         if self.player.state() == QMediaPlayer.PlayingState:
             self.player.pause()
             self.playBtn.setToolTip("Play")
+            self.setWindowTitle(f'Paused - {self.list.currentItem().text()}')
 
         else:
             self.player.play()
             self.playBtn.setToolTip("Pause")
+            self.setWindowTitle(f'Playing - {self.list.currentItem().text()}')
+        self.get_current_song()
+
+    def get_current_song(self):
+        self.playing = self.list.currentItem().text()
+        self.played.append(self.playing)
 
     def playbackRate(self):
         return self.rateBox.itemData(self.rateBox.currentIndex())
@@ -599,10 +653,12 @@ class CandyMP3Player(QWidget):
             self.list.setCurrentRow(self.list.currentRow() + 1)
             self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
+
         except Exception:
             self.list.setCurrentRow(0)
             self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
+        self.get_current_song()
 
     def playPrevious(self):
         try:
@@ -614,42 +670,140 @@ class CandyMP3Player(QWidget):
             self.list.setCurrentRow(self.list.count() - 1)
             self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.list.currentItem().text()])))
             self.player.play()
+        self.get_current_song()
+
+    def closeEvent(self, event):
+        info = {"last_played": self.playing if self.playing else None,
+                "total_time": self.player.duration(),
+                "time_elapsed": self.slider.value(),
+                "volume": self.vslider.value(),
+                "last_playlist": self.tablebox.currentText(),
+                "repeat": self.repeat_one,
+                "once": self.once}
+        json_obj = json.dumps(info, indent=4)
+        with open(f'C:/Users/{os.getlogin()}/CMPdata.json', 'w') as file:
+            file.write(json_obj)
+        conn.close()
+        self.showMinimized()
+        os.startfile("database.exe")
+
+
+class Popup(QDialog):
+    def __init__(self, tablebox):
+        super().__init__()
+        self.setWindowTitle("Candy Music Player")
+        self.setWindowIcon(QIcon("icons/mp3_player_icon1.ico"))
+        self.listWidget = QListWidget()
+        self.listWidget.setFont(QFont('Sitka Text', 11))
+        self.listWidget.itemDoubleClicked.connect(self.add_to_playlist)
+
+        self.newlbl = QLineEdit()
+        self.newlbl.setUpdatesEnabled(True)
+        self.newlbl.setPlaceholderText('New Playlist')
+        self.newlbl.setFont(QFont('Sitka Text', 11))
+
+        self.btn = QPushButton('Create')
+        self.btn.setFont(QFont('Sitka Text', 11))
+        self.btn.clicked.connect(self.create_new_playlist)
+
+        self.add_btn = QPushButton('Add To Playlist')
+        self.add_btn.setFont(QFont('Sitka Text', 11))
+        self.add_btn.clicked.connect(self.add_to_playlist)
+
+        self.tablebox = tablebox
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.newlbl)
+        hbox.addWidget(self.btn)
+        layout = QVBoxLayout(self)
+        layout.addLayout(hbox)
+        layout.addWidget(self.listWidget)
+        layout.addWidget(self.add_btn)
+        self.get_tables()
+
+    def get_tables(self):
+        self.listWidget.clear()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        for tables in c.fetchall():
+            for table in tables:
+                self.listWidget.addItem(table.title())
+
+    def create_new_playlist(self):
+        name = self.newlbl.text()
+        c.execute(f"""CREATE TABLE IF NOT EXISTS {name.lower()}(
+                    name text,
+                    fullpath text)""")
+        conn.commit()
+        self.get_tables()
+        self.tablebox.addItem(name.title())
+
+    def add_to_playlist(self):
+        c.execute(f"INSERT INTO {self.listWidget.currentItem().text()}(name, fullpath) VALUES(?, ?)",
+                  (song_to_add_to_playlist[0], song_to_add_to_playlist[1]))
+        conn.commit()
+        song_to_add_to_playlist.clear()
+        self.close()
 
 
 if __name__ == '__main__':
     app = QApplication(argv)
     app.setStyleSheet('''
-        #title_label {
-            font-size: 50px;
-            color: #ffffff;
-        }
-        #desc_label {
-            font-size: 20px;
-            color: #c2ced1;
-        }
-        #loading_label {
-            font-size: 30px;
-            color: #e8e8eb;
-        }
+    QSlider::groove:horizontal {
+    border: 1px solid #bbb;
+    background: white;
+    height: 10px;
+    border-radius: 4px;
+    }
 
-        #Frame {
-            background-color: #2F4454;
-            color: rgb(220, 220, 220);
-        }
+    QSlider::sub-page:horizontal {
+    background: qlineargradient(x1: 0, y1: 0,    x2: 0, y2: 1,
+        stop: 0 #66e, stop: 1 #bbf);
+    background: qlineargradient(x1: 0, y1: 0.2, x2: 1, y2: 1,
+        stop: 0 #bbf, stop: 1 #55f);
+    border: 1px solid #777;
+    height: 10px;
+    border-radius: 4px;
+    }
 
-        QProgressBar {
-            background-color: #000000;
-            color: #c8c8c8;
-            border-style: none;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 25px;
-        }
-        QProgressBar::chunk {
-            border-radius: 5px;
-            background-color: qlineargradient(spread:pad x1:0, x2:1, y1:0.511364, y2:0.523, stop:0 #33b846);
-        }
-    ''')
-    splash = SplashScreen()
-    splash.show()
+    QSlider::add-page:horizontal {
+    background: #fff;
+    border: 1px solid #777;
+    height: 10px;
+    border-radius: 4px;
+    }
+
+    QSlider::handle:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #eee, stop:1 #ccc);
+    border: 1px solid #777;
+    width: 13px;
+    margin-top: -2px;
+    margin-bottom: -2px;
+    border-radius: 4px;
+    }
+
+    QSlider::handle:horizontal:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #fff, stop:1 #ddd);
+    border: 1px solid #444;
+    border-radius: 4px;
+    }
+
+    QSlider::sub-page:horizontal:disabled {
+    background: #bbb;
+    border-color: #999;
+    }
+
+    QSlider::add-page:horizontal:disabled {
+    background: #eee;
+    border-color: #999;
+    }
+
+    QSlider::handle:horizontal:disabled {
+    background: #eee;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    }''')
+    window = CandyMP3Player()
+    window.show()
     exit(app.exec_())
