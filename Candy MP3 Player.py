@@ -6,12 +6,13 @@ from sys import argv, exit
 from pytube import YouTube
 import lyricsgenius
 from PyQt5.QtCore import Qt, QUrl, QTime, QEvent
-from PyQt5.QtGui import QIcon, QKeySequence, QFont, QMouseEvent
+from PyQt5.QtGui import QIcon, QKeySequence, QFont
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtWidgets import QApplication, \
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout, \
     QStyle, QSlider, QShortcut, QLineEdit, QComboBox, QListWidget, QTabWidget, QPlainTextEdit, QAction, QMenu, QDialog, QMessageBox
 import json
+from pathlib import Path
 
 genius = lyricsgenius.Genius('J6lSgKHLkgRJHgFNjFi0YWP8l9TRxP9gWg_xACDdfzw8L6ZDYqBgTDLa9njTDTKT', skip_non_songs=True,
                              excluded_terms=["(Remix)", "(Live)"],
@@ -20,17 +21,19 @@ genius = lyricsgenius.Genius('J6lSgKHLkgRJHgFNjFi0YWP8l9TRxP9gWg_xACDdfzw8L6ZDYq
 mp3files = {}
 song_to_add_to_playlist = []
 
-if "CMPdata.db" in os.listdir(f"C:/Users/{os.getlogin()}"):
-    conn = sqlite3.connect(f"C:/Users/{os.getlogin()}/CMPdata.db")
+HOME_PATH = str(Path.home()).replace('\\', '/')
+
+if "CMPdata.db" in os.listdir(HOME_PATH):
+    conn = sqlite3.connect(f"{HOME_PATH}/CMPdata.db")
     c = conn.cursor()
 else:
     os.startfile("database.exe")
     time.sleep(2.5)
-    conn = sqlite3.connect(f"C:/Users/{os.getlogin()}/CMPdata.db")
+    conn = sqlite3.connect(f"{HOME_PATH}/CMPdata.db")
     c = conn.cursor()
 
-if 'CMPdata.json' in os.listdir(f"C:/Users/{os.getlogin()}"):
-    f = open(f'C:/Users/{os.getlogin()}/CMPdata.json', 'r')
+if 'CMPdata.json' in os.listdir(f"{HOME_PATH}"):
+    f = open(f'{HOME_PATH}/CMPdata.json', 'r')
     data = json.load(f)
 else:
     data = None
@@ -362,8 +365,6 @@ class CandyMP3Player(QWidget):
         return super(CandyMP3Player, self).eventFilter(source, event)
 
     def adjusting(self):
-        print(self.repeat_one)
-        print(self.once)
         try:
             if self.playing:
                 self.player.setMedia(QMediaContent(QUrl.fromLocalFile(mp3files[self.playing])))
@@ -419,7 +420,7 @@ class CandyMP3Player(QWidget):
             yt = YouTube(url)
             stream = yt.streams.filter(only_audio=True).first()
             self.message_box("Download", f"Downloading - {yt.title}")
-            path = "C:/Users/%s/Music"%os.getlogin()
+            path = f"{HOME_PATH}/Music"
             out_file = stream.download(output_path=path)
             base, ext = os.path.splitext(out_file)
             new_file = base + '.mp3'
@@ -681,7 +682,7 @@ class CandyMP3Player(QWidget):
                 "repeat": self.repeat_one,
                 "once": self.once}
         json_obj = json.dumps(info, indent=4)
-        with open(f'C:/Users/{os.getlogin()}/CMPdata.json', 'w') as file:
+        with open(f'{HOME_PATH}/CMPdata.json', 'w') as file:
             file.write(json_obj)
         conn.close()
         self.showMinimized()
